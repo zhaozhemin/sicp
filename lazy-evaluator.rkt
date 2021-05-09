@@ -1,17 +1,44 @@
 #lang sicp
 
+; ex 4.25
+;
+; It causes infinite loop in applicative-order, as the second argument of
+; unless will call factorial indefinitely. Normal-order will work.
+
+; 4.26
+
+; If you want to pass unless around, it has to be a procedure. But a
+; proper situation yet eludes me.
+
+(define (unless? exp) (tagged-list? exp 'unless))
+
+(define (unless-condition exp) (cadr exp))
+
+(define (unless-usual-value exp) (caddr exp))
+
+(define (unless-exceptional-value exp) (cadddr exp))
+
+(define (unless->if exp)
+  (make-if (unless-condition exp)
+           (unless-exceptional-value exp)
+           (unless-usual-value exp)))
+
 ; ex 4.27
 ;
-; 1
-; Inner (id 10) is not evaluated; w is a thunk.
-; 10
-; Looking up the value of w evaluates w; add another 1 to count.
-; 2
+; 1 : (id 10) is not evaluated; w is a thunk
+; 10 : (id 10) returns 10
+; 2 : Looking up the value of w evaluates w; add another 1 to count
 
 ; ex 4.28
 ;
-; The operator is determined by some conditional expression.
-
+; It seems to me that the only way for eval to produce a thunk is by making
+; a procedure return one of its arguments.
+;
+; ((if true + *) 2 3) works fine in both versions.
+;
+; (define (f a b) (if true a b))
+; ((f + *) 2 3)
+; will cause an error if you use eval to evaluate the operator.
 
 ; ex 4.29
 ;
@@ -47,11 +74,7 @@
 ;
 ; If the object is other than a thunk, force-it will return the object itself.
 
-; TODO ex 4.31
-
 ; TODO ex 4.32
-
-; TODO ex 4.33
 
 ; TODO ex 4.34
 
@@ -60,7 +83,7 @@
 (define (eval exp env)
   (cond ((self-evaluating? exp) exp)
         ((variable? exp) (lookup-variable-value exp env))
-        ((quoted? exp) (text-of-quotation exp))
+        ((quoted? exp) (text-of-quotation exp env))
         ((assignment? exp) (eval-assignment exp env))
         ((definition? exp) (eval-definition exp env))
         ((if? exp) (eval-if exp env))
@@ -71,14 +94,34 @@
          (eval-sequence (begin-actions exp) env))
         ((cond? exp) (eval (cond->if exp) env))
         ((application? exp)
-         (m-apply (actual-value (operator exp) env)
-                  (operands exp)
-                  env))
-         ; (m-apply (eval (operator exp) env)
-         ;          (list-of-values (operands exp) env)))
+         (meta-apply (actual-value (operator exp) env)
+                     (operands exp)
+                     env))
         (else (error "Unknown expression type: EVAL" exp))))
 
-(define (m-apply procedure arguments env)
+; ex 4.31
+
+(define (list-of-values exps parameters env)
+  (if (no-operands? exps)
+      '()
+      (cons (if (pair? (car parameters))
+                (delay-it (first-operand exps) env)
+                (eval (first-operand exps) env))
+            (list-of-values (rest-operands exps) (cdr parameters) env))))
+
+;; (define (meta-apply procedure arguments env)
+;;   (cond ((primitive-procedure? procedure)
+;;          (apply-primitive-procedure procedure (list-of-arg-values arguments env)))
+;;         ((compound-procedure? procedure)
+;;          (eval-sequence
+;;           (procedure-body procedure)
+;;           (extend-environment
+;;            (map (lambda (n) (if (pair? n) (car n) n)) (procedure-parameters procedure))
+;;            (list-of-values arguments (procedure-parameters procedure) env)
+;;            (procedure-environment procedure))))
+;;         (else (error "Unknown procedure type: APPLY" procedure))))
+
+(define (meta-apply procedure arguments env)
   (cond ((primitive-procedure? procedure)
          (apply-primitive-procedure procedure (list-of-arg-values arguments env)))
         ((compound-procedure? procedure)
@@ -117,26 +160,20 @@
 
 (define (thunk-value evaluated-thunk) (cadr evaluated-thunk))
 
+;; (define (force-it obj)
+;;   (if (thunk? obj)
+;;       (actual-value (thunk-exp obj) (thunk-env obj))
+;;       obj))
+
 (define (force-it obj)
-  (if (thunk? obj)
-      (actual-value (thunk-exp obj) (thunk-env obj))
-      obj))
-
-; (define (force-it obj)
-;   (cond ((thunk? obj)
-;          (let ((result (actual-value (thunk-exp obj) (thunk-env obj))))
-;            (set-car! obj 'evaluated-thunk)
-;            (set-car! (cdr obj) result) ; replace exp with its value
-;            (set-cdr! (cdr obj) '()) ; forget unneeded env
-;            result))
-;         ((evaluated-thunk? obj) (thunk-value obj))
-;         (else obj)))
-
-(define (list-of-values exps env)
-  (if (no-operands? exps)
-      '()
-      (cons (eval (first-operand exps) env)
-            (list-of-values (rest-operands exps) env))))
+  (cond ((thunk? obj)
+         (let ((result (actual-value (thunk-exp obj) (thunk-env obj))))
+           (set-car! obj 'evaluated-thunk)
+           (set-car! (cdr obj) result) ; replace exp with its value
+           (set-cdr! (cdr obj) '()) ; forget unneeded env
+           result))
+        ((evaluated-thunk? obj) (thunk-value obj))
+        (else obj)))
 
 (define (eval-if exp env)
   (if (true? (actual-value (if-predicate exp) env))
@@ -147,7 +184,7 @@
   (cond ((last-exp? exps)
          (eval (first-exp exps) env))
         (else
-         (actual-value (first-exp exps) env)
+         (eval (first-exp exps) env)
          (eval-sequence (rest-exps exps) env))))
 
 (define (eval-assignment exp env)
@@ -173,7 +210,26 @@
 (define (quoted? exp)
   (tagged-list? exp 'quote))
 
-(define (text-of-quotation exp) (cadr exp))
+; ex 4.33
+;
+; The definition of cons, car, and cdr should be typed into the lazy
+; evaluator, not in this file.
+;
+; It seems that there's a slight difference between how Racket and
+; Scheme handle the quoting. Scheme evals the quoting while Racket
+; doesn't. For example, typing ''a into the REPL, Scheme produces 'a,
+; and Racket produces ''a.
+
+(define (make-list exp)
+  (cond [(null? exp) ''()]
+        [(pair? (car exp))
+         (list 'cons (make-list (car exp)) (make-list (cdr exp)))]
+        [else (list 'cons `(quote ,(car exp)) (make-list (cdr exp)))]))
+
+(define (text-of-quotation exp env)
+  (if (and (pair? (cadr exp)) (not (eq? (caadr exp) 'quote)))
+      (eval (make-list (cadr exp)) env)
+      (cadr exp)))
 
 (define (tagged-list? exp tag)
   (if (pair? exp)
@@ -282,15 +338,9 @@
                 (sequence->exp (cond-actions first))
                 (error "ELSE clause isn't last: COND->IF"
                        clauses))
-            ; ex 4.5
-            (if (eq? (car (cond-actions first)) '=>)
-                (make-if (cond-predicate first)
-                         (list (cadr (cond-actions first))
-                               (cond-predicate first))
-                         (expand-clauses rest))
                 (make-if (cond-predicate first)
                          (sequence->exp (cond-actions first))
-                         (expand-clauses rest)))))))
+                         (expand-clauses rest))))))
 
 (define (true? x) (not (eq? x false)))
 
@@ -393,18 +443,17 @@
 
 
 (define primitive-procedures
-  (list (list 'car car)
+  (list (list 'cons cons)
+        (list 'car car)
         (list 'cdr cdr)
-        (list 'cadr cadr)
+        ;; (list 'cadr cadr)
         (list '+ +)
         (list '- -)
         (list '* *)
         (list '/ /)
         (list '= =)
         (list '>= >=)
-        (list 'cons cons)
         (list 'null? null?)
-        (list 'map map)
         (list '*unassigned* '*unassigned*)
         (list 'assoc assoc)))
 
