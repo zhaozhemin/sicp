@@ -2,8 +2,6 @@
 
 (define apply-in-underlying-scheme apply)
 
-(define (eval exp env) ((analyze exp) env))
-
 (define (analyze exp)
   (cond ((self-evaluating? exp) (analyze-self-evaluating exp))
         ((quoted? exp) (analyze-quoted exp))
@@ -19,7 +17,7 @@
         ((cond? exp) (analyze (cond->if exp)))
         ((amb? exp) (analyze-amb exp))
         ((ramb? exp) (analyze-ramb exp))
-        ((require? exp) (analyze-require exp))
+        ;; ((require? exp) (analyze-require exp))
         ((let? exp) (analyze (let->combination exp)))
         ((application? exp) (analyze-application exp))
         (else (error "Unknown expression type: ANALYZE" exp))))
@@ -144,23 +142,14 @@
   (lambda (env succeed fail)
     (succeed exp fail)))
 
-; (define (analyze-self-evaluating exp) (lambda (env) exp))
-
 (define (analyze-quoted exp)
   (let ((qval (text-of-quotation exp)))
     (lambda (env succeed fail)
       (succeed qval fail))))
 
-; (define (analyze-quoted exp)
-;   (let ((qval (text-of-quotation exp)))
-;     (lambda (env) qval)))
-
 (define (analyze-variable exp)
   (lambda (env succeed fail)
     (succeed (lookup-variable-value exp env) fail)))
-
-; (define (analyze-variable exp)
-;   (lambda (env) (lookup-variable-value exp env)))
 
 (define (analyze-assignment exp)
   (let ((var (assignment-variable exp))
@@ -186,11 +175,6 @@
       (vproc env
              (lambda (val fail2) (define-variable! var val env) (succeed 'ok fail2))
              fail))))
-
-; (define (analyze-definition exp)
-;   (let ((var (definition-variable exp))
-;         (vproc (analyze (definition-value exp))))
-;     (lambda (env) (define-variable! var (vproc env) env) 'ok)))
 
 (define (analyze-if exp)
   (let ((pproc (analyze (if-predicate exp)))
@@ -292,11 +276,6 @@
          fail2))
      fail)))
 
-; (define (analyze-application exp)
-;   (let ((fproc (analyze (operator exp)))
-;         (aprocs (map analyze (operands exp))))
-;     (lambda (env) (execute-application (fproc env) (map (lambda (aproc) (aproc env)) aprocs)))))
-
 (define (execute-application proc args succeed fail)
   (cond ((primitive-procedure? proc)
          (succeed (apply-primitive-procedure proc args) fail))
@@ -309,17 +288,6 @@
           succeed
           fail))
         (else (error "Unknown procedure type: EXECUTE-APPLICATION" proc))))
-
-
-; (define (execute-application proc args)
-;   (cond ((primitive-procedure? proc) (apply-primitive-procedure proc args))
-;         ((compound-procedure? proc)
-;          ((procedure-body proc)
-;           (extend-environment
-;            (procedure-parameters proc)
-;            args
-;            (procedure-environment proc))))
-;         (else (error "Unknown procedure type: EXECUTE-APPLICATION" proc))))
 
 (define (self-evaluating? exp)
   (cond ((number? exp) true)
@@ -574,6 +542,7 @@
         (list 'memq memq)
         (list 'length length)
         (list 'display display)
+        (list 'require require)
         (list '*unassigned* '*unassigned*)
         (list 'assoc assoc)))
 
@@ -591,15 +560,6 @@
 (define input-prompt ";;; M-Eval input:")
 
 (define output-prompt ";;; M-Eval value:")
-
-; (define (driver-loop)
-;   (prompt-for-input input-prompt)
-;   (let ((input (read)))
-;     (display input)
-;     (let ((output (eval input the-global-environment)))
-;       (announce-output output-prompt)
-;       (user-print output)))
-;   (driver-loop))
 
 (define (prompt-for-input string)
   (newline) (newline) (display string) (newline))

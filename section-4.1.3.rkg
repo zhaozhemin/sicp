@@ -1,0 +1,54 @@
+#lang sicp
+
+; ex 4.11 & ex 4.12
+
+(define (make-frame variable values)
+  (cons '*frame* (map cons variable values)))
+
+(define (frame-variables frame) (map car (cdr frame)))
+
+(define (frame-values frame) (map cdr (cdr frame)))
+
+(define (add-binding-to-frame! var val frame)
+  (set-cdr! frame (cons (cons var val) (cdr frame))))
+
+(define (extend-environment vars vals base-env)
+  (if (= (length vars) (length vals))
+      (cons (make-frame vars vals) base-env)
+      (if (< (length vars) (length vals))
+          (error "Too many arguments supplied" vars vals)
+          (error "Too few arguments supplied" vars vals))))
+
+(define (scan var frame)
+  (assoc var (cdr frame)))
+
+; ex 4.13
+;
+; Only make the bound variable's value in the first frame to be
+; '*unassigned*.
+
+(define (unbound? exp) (tagged-list? exp 'make-unbound!))
+
+(define (unbound-var exp) (cadr exp))
+
+(define (eval-make-unbound! exp env)
+  (let* ([frame (first-frame env)]
+         [pair (scan (unbound-var exp) frame)])
+    (if pair
+        (set-cdr! pair '*unassigned*)
+        (error "Unbound variable: MAKE-UNBOUND!" (unbound-var exp)))))
+
+; ex 4.14
+;
+; Simply put, if map is primitive, the proc of map will be called in the
+; implementation language. However, the proc of map is the representation of
+; procedure in the implemented language; in the implementation language, it's
+; just a list, which cannot be called.
+;
+; Take (map (lambda (n) n) '(1 2 3)) as an example. It becomes
+;
+; 1. (apply map '((procedure ...) (1 2 3)) which becomes
+; 2. (map '(procedure ...) '(1 2 3)) which crashes because '(procedure ...) is
+;    not callable.
+
+; TODO ex 4.15
