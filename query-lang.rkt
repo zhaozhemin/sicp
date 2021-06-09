@@ -90,6 +90,13 @@
 ; one. Because THE-ASSERTIONS in the cons-stream is not evaluated, by
 ; the time you access the it, it already is set to the new one.
 
+; TODO ex 4.71
+
+; ex 4.72
+
+; When some streams are infinite. (But if it is the case, wouldn't the
+; program stuck in an infinite loop when it tries to print the
+; answer?)
 
 (define (tagged-list? exp tag)
   (if (pair? exp)
