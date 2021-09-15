@@ -2,6 +2,9 @@
 
 (#%require "environment.rkt")
 
+(define (+? exp)
+  (tagged-list? exp '+))
+
 (define (compile exp target linkage compile-env)
   (cond ((self-evaluating? exp)
          (compile-self-evaluating exp target linkage compile-env))
@@ -21,8 +24,8 @@
          (compile-sequence (begin-actions exp) target linkage compile-env))
         ((cond? exp)
          (compile (cond->if exp) target linkage compile-env))
-        ;; ((+? exp)
-        ;;  (compile-plus exp target linkage))
+        ((+? exp)
+         (compile-plus exp target linkage compile-env))
         ((application? exp)
          (compile-application exp target linkage compile-env))
         (else (error "Unknown expression type: COMPILE" exp))))
@@ -52,39 +55,27 @@
    instruction-sequence
    (compile-linkage linkage)))
 
-;; (define (spread-arguments operands)
+(define (spread-arguments operands compile-env)
+  (list
+   (compile (car operands) 'arg1 'next compile-env)
+   (if (> (length operands) 2)
+       (compile (cons '+ (cdr operands)) 'arg2 'next compile-env)
+       (compile (cadr operands) 'arg2 'next compile-env))))
 
-;;   (define (next-target target)
-;;     (cond ((eq? target 'arg1) 'arg2)
-;;           ((eq? target 'arg2) 'arg1)))
-
-;;   (define (spread ops target)
-;;     (if (null? ops)
-;;         (empty-instruction-sequence)
-;;         (preserving
-;;          `(,target env continue)
-;;          (compile (car ops) target 'next)
-;;          (spread (cdr ops) (next-target target)))))
-
-;;   (spread operands 'arg1))
-
-;; (define (spread-arguments operands)
-;;   (preserving
-;;    '(arg1 arg2)
-;;    (compile (car operands) 'arg1 'next)
-;;    (compile (cadr operands) 'arg2 'next)))
-
-;; (define (compile-plus exp target linkage)
-;;   (let ((operand-codes (spread-arguments (operands exp))))
-;;     (end-with-linkage
-;;      linkage
-;;      (preserving
-;;       '()
-;;       operand-codes
-;;       (make-instruction-sequence
-;;        '(arg1 arg2)
-;;        (list target)
-;;        `((assign ,target (op +) (reg arg1) (reg arg2))))))))
+(define (compile-plus exp target linkage compile-env)
+  (let ((operand-codes (spread-arguments (operands exp) compile-env)))
+    (end-with-linkage
+     linkage
+     (preserving
+      '(env)
+      (car operand-codes)
+      (preserving
+       '(env arg1)
+       (cadr operand-codes)
+       (make-instruction-sequence
+        '(arg1 arg2)
+        (list target)
+        `((assign ,target (op +) (reg arg1) (reg arg2)))))))))
 
 (define (compile-self-evaluating exp target linkage compile-env)
   (end-with-linkage

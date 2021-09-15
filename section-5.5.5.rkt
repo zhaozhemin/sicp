@@ -21,7 +21,7 @@
 
 ;; (define (f x) (+ x (g (+ x 2)))
 
-;; TODO ex 5.36
+;; ex 5.36
 
 ;; The order is right-to-left; it's determined in construct-arglist. To
 ;; evaluate in a left-to-right order, don't reverse the arglist and use append
@@ -29,4 +29,26 @@
 
 ;; TODO ex 5.37
 
-;; TODO ex 5.38
+;; ex 5.38
+
+(define (spread-arguments operands compile-env)
+  (list
+   (compile (car operands) 'arg1 'next compile-env)
+   (if (> (length operands) 2)
+       (compile (cons '+ (cdr operands)) 'arg2 'next compile-env)
+       (compile (cadr operands) 'arg2 'next compile-env))))
+
+(define (compile-plus exp target linkage compile-env)
+  (let ((operand-codes (spread-arguments (operands exp) compile-env)))
+    (end-with-linkage
+     linkage
+     (preserving
+      '(env)
+      (car operand-codes)
+      (preserving
+       '(env arg1)
+       (cadr operand-codes)
+       (make-instruction-sequence
+        '(arg1 arg2)
+        (list target)
+        `((assign ,target (op +) (reg arg1) (reg arg2)))))))))

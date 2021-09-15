@@ -109,6 +109,9 @@
                         (reg val))
                (assign ,target (const ok))))))))))
 
-;; TODO ex 5.43
+;; ex 5.43
+
+;; Pass (scan-out-defines (lambda-body exp)) instead of (lambda-body exp)
+;; to compile-sequence.
 
 ;; TODO ex 5.44

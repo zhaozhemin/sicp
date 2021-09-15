@@ -112,6 +112,7 @@
         (list 'compile-and-run? compile-and-run?)
         (list 'compilation-exp compilation-exp)
         (list 'display display)
+        (list '+ +)
         (list 'cons cons)))
 
 (define eceval

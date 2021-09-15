@@ -10,7 +10,7 @@
 ;; has already got the correct value.
 ;; 4. Same as 3.
 
-;; TODO ex 5.32
+;; ex 5.32
 
 ;; ev-application-symbol
 ;; (save continue)
