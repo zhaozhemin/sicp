@@ -1,0 +1,7 @@
+I did about 50% to 70% of the exercises. I guess. Maybe someday I will
+revisit them. In the evaluators directory are, you guessed it,
+evaluators produced along the way of reading the book. Those
+'textbook' ones are pretty much copy-pastes from the book; those
+'exercise' have changes required by the exercises. All of them are
+probably running fine with Racket. Maybe you will find some of these
+useful, who knows. Have fun.
