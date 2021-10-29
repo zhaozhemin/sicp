@@ -108,3 +108,8 @@
 ;; (assign exp (op compilation-exp) (reg exp))
 ;; (assign val (op assemble-exp) (reg exp))
 ;; (goto (label external-entry))
+
+;; TODO ex 5.49
+;; TODO ex 5.50
+;; TODO ex 5.51
+;; TODO ex 5.52

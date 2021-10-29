@@ -1,6 +1,6 @@
 #lang sicp
 
-(#%require "compiler.rkt")
+(#%require "compiler-exercise.rkt")
 (#%require "environment.rkt")
 (#%require "reg-sim-exercise.rkt")
 
@@ -12,16 +12,18 @@
 (define (announce-output string) (newline) (display string) (newline))
 
 (define (user-print object)
-  (if (compound-procedure? object)
-      (display (list 'compound-procedure
-                     (procedure-parameters object)
-                     (procedure-body object)
-                     '<procedure-env>))
-      (begin (display object) (newline))))
+  (cond ((compound-procedure? object)
+         (display (list 'compound-procedure
+                        (procedure-parameters object)
+                        (procedure-body object)
+                        '<procedure-env>)))
+        ((compiled-procedure? object) (display '<compiled-procedure>))
+        (else (display object))))
 
 (define the-global-environment (setup-environment))
 
-(define (get-global-environment) the-global-environment)
+(define (get-global-environment)
+  the-global-environment)
 
 (define (empty-arglist) '())
 
@@ -29,17 +31,6 @@
   (append arglist (list arg)))
 
 (define (last-operand? ops) (null? (cdr ops)))
-
-(define (assemble-exp expression)
-  (assemble
-   (statements (compile expression 'val 'return '()))
-   eceval))
-
-(define (compilation-exp exp)
-  (cadr (cadr exp)))
-
-(define (compile-and-run? exp)
-  (tagged-list? exp 'compile-and-run))
 
 (define eceval-operations
   (list (list 'self-evaluating? self-evaluating?)
@@ -90,37 +81,21 @@
         (list 'get-global-environment get-global-environment)
         (list 'rest-operands rest-operands)
         (list 'compound-procedure? compound-procedure?)
-        (list 'let? let?)
-        (list 'let->combination let->combination)
-        (list 'cond? cond?)
-        (list 'cond-actions cond-actions)
-        (list 'cond-predicate cond-predicate)
-        (list 'cond-clauses cond-clauses)
-        (list 'cond-else-clause? cond-else-clause?)
-        (list 'null? null?)
-        (list 'no-more-exps? no-more-exps?)
-        (list 'compound-procedure? compound-procedure?)
         (list 'compiled-procedure? compiled-procedure?)
         (list 'compiled-procedure-entry compiled-procedure-entry)
+        (list 'list list)
+        (list 'cons cons)
         (list 'make-compiled-procedure make-compiled-procedure)
         (list 'compiled-procedure-env compiled-procedure-env)
-        (list 'list list)
-        (list 'lexical-address-lookup lexical-address-lookup)
-        (list 'lexical-address-set! lexical-address-set!)
         (list 'false? false?)
-        (list 'assemble-exp assemble-exp)
-        (list 'compile-and-run? compile-and-run?)
-        (list 'compilation-exp compilation-exp)
-        (list 'display display)
-        (list '+ +)
-        (list 'cons cons)))
+        (list 'lexical-address-lookup lexical-address-lookup)
+        (list 'lexical-address-set! lexical-address-set!)))
 
 (define eceval
   (make-machine
    '(exp env val proc argl continue unev)
    eceval-operations
-   '((assign compapp (label compound-apply))
-     (branch (label external-entry))
+   '((branch (label external-entry))
      read-eval-print-loop
      (perform (op initialize-stack))
      (perform (op prompt-for-input) (const ";;; EC-Eval input:"))
@@ -146,60 +121,9 @@
      (branch (label ev-lambda))
      (test (op begin?) (reg exp))
      (branch (label ev-begin))
-     (test (op let?) (reg exp))
-     (branch (label ev-let))
-     (test (op cond?) (reg exp))
-     (branch (label ev-cond))
-     (test (op compile-and-run?) (reg exp))
-     (branch (label compile-and-run))
      (test (op application?) (reg exp))
      (branch (label ev-application))
      (goto (label unknown-expression-type))
-
-     ; ex 5.23
-     ev-let
-     (assign exp (op let->combination) (reg exp))
-     (goto (label eval-dispatch))
-
-     ; ex 5.24
-     ev-cond
-     (save continue)
-     (assign unev (op cond-clauses) (reg exp))
-
-     ev-cond-clauses
-     (test (op null?) (reg unev))
-     (branch (label ev-cond-end))
-     (goto (label ev-cond-clause))
-
-     ev-cond-clause
-     (assign exp (op first-exp) (reg unev))
-     (test (op cond-else-clause?) (reg exp))
-     (branch (label ev-cond-else))
-     (save exp)
-     (save unev)
-     (assign exp (op cond-predicate) (reg exp))
-     (assign continue (label after-ev-cond-clause))
-     (goto (label eval-dispatch))
-
-     ev-cond-else
-     (assign unev (op cond-actions) (reg exp))
-     (goto (label ev-sequence))
-
-     after-ev-cond-clause
-     (restore unev)
-     (restore exp)
-     (test (op true?) (reg val))
-     (branch (label ev-cond-true))
-     (assign unev (op rest-exps) (reg unev))
-     (goto (label ev-cond-clauses))
-
-     ev-cond-end
-     (restore continue)
-     (goto (reg continue))
-
-     ev-cond-true
-     (assign unev (op cond-actions) (reg exp))
-     (goto (label ev-sequence))
 
      ev-self-eval
      (assign val (reg exp))
@@ -296,26 +220,6 @@
      (save continue)
      (goto (label ev-sequence))
 
-     ; Without tail recursion opimization
-     ;; ev-sequence
-     ;; (test (op no-more-exps?) (reg unev))
-     ;; (branch (label ev-sequence-end))
-     ;; (assign exp (op first-exp) (reg unev))
-     ;; (save unev)
-     ;; (save env)
-     ;; (assign continue (label ev-sequence-continue))
-     ;; (goto (label eval-dispatch))
-
-     ;; ev-sequence-continue
-     ;; (restore env)
-     ;; (restore unev)
-     ;; (assign unev (op rest-exps) (reg unev))
-     ;; (goto (label ev-sequence))
-
-     ;; ev-sequence-end
-     ;; (restore continue)
-     ;; (goto (reg continue))
-
      ev-sequence
      (assign exp (op first-exp) (reg unev))
      (test (op last-exp?) (reg unev))
@@ -401,11 +305,6 @@
      (assign continue (label print-result))
      (goto (reg val))
 
-     compile-and-run
-     (assign exp (op compilation-exp) (reg exp))
-     (assign val (op assemble-exp) (reg exp))
-     (goto (label external-entry))
-
      print-result
      (perform (op print-stack-statistics))
      (perform (op announce-output) (const ";;; EC-Eval value:"))
@@ -428,27 +327,6 @@
      (perform (op user-print) (reg val))
      (goto (label read-eval-print-loop)))))
 
-; TODO ex 5.25
-
-; ex 5.26
-
-; 1. 10
-; 2. 29 + 35n
-
-
-; ex 5.27
-
-;; |           | maximum depth | number of pushes  |
-;; | recursive | 3 + 5n        | 16 + 32 * (n - 1) |
-;; | iterative | 10            | 29 + 35n          |
-
-; ex 5.29
-
-; 1. 13 + 5 * (n - 2) for n >= 2
-; 2. TODO
-
-; ex 5.30
-
 (define (start-eceval)
   (set! the-global-environment (setup-environment))
   (set-register-contents! eceval 'flag false)
@@ -459,8 +337,6 @@
          (assemble
           (statements (compile expression 'val 'return '()))
           eceval)))
-    ;; (display instructions)
-    ;; (display (statements (compile expression 'val 'return '())))
     (set! the-global-environment (setup-environment))
     (set-register-contents! eceval 'val instructions)
     (set-register-contents! eceval 'flag true)
